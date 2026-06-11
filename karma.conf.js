@@ -51,7 +51,9 @@ module.exports = function (config) {
           '--no-sandbox',
           '--disable-gpu',
           '--headless',
-          '--remote-debugging-port=9222'
+          // Required on CI runners: the default /dev/shm is too small and Chrome
+          // can hang/crash without this.
+          '--disable-dev-shm-usage'
         ]
       }
     },
