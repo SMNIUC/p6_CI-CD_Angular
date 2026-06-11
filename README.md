@@ -74,6 +74,35 @@ docker compose down            # stop and remove the container
 
 > **Note:** the app is published on port `80`. If that port is already in use (or requires elevated privileges on your machine), change the mapping in [docker-compose.yml](docker-compose.yml) to e.g. `"8080:80"` and browse to `http://localhost:8080`.
 
+## Continuous Integration & Releasing
+
+The [CI workflow](.github/workflows/ci.yml) runs on every push and pull request:
+
+1. **Test** — runs the unit tests and publishes a JUnit report to the Actions UI.
+2. **Build** — builds the Docker image, validates it actually serves before pushing, then pushes it to the GitHub Container Registry (GHCR) tagged `<branch>-<short-sha>` (e.g. `main-e2a98be`).
+
+### Cutting a release
+
+Releases are **triggered manually** and handled by [semantic-release](https://semantic-release.gitbook.io/). To cut one:
+
+1. Go to the repository's **Actions** tab → **CI** workflow → **Run workflow**.
+2. semantic-release inspects the commits since the last release, determines the next version, and:
+   - creates a **git tag** and a **GitHub Release** with an auto-generated changelog, and
+   - re-tags the validated Docker image with SemVer tags (`MAJOR.MINOR.PATCH`, plus rolling `MAJOR.MINOR`, `MAJOR`, and `latest`).
+
+If no commits warrant a release, the run completes without creating one.
+
+### Conventional Commits
+
+The version bump is derived from the [Conventional Commits](https://www.conventionalcommits.org/) specification, so commit messages must follow it:
+
+| Commit prefix | Example | Release |
+| --- | --- | --- |
+| `fix:` | `fix: correct medal count rounding` | **patch** (`1.2.3` → `1.2.4`) |
+| `feat:` | `feat: add country detail page` | **minor** (`1.2.3` → `1.3.0`) |
+| `feat!:` or a `BREAKING CHANGE:` footer | `feat!: drop legacy API` | **major** (`1.2.3` → `2.0.0`) |
+| `chore:`, `docs:`, `refactor:`, `test:`, … | `chore: update dependencies` | no release |
+
 ### Deploy on nginx
 
 To deploy application on nginx web server with docker you can use nginx config located in the `nginx` folder. This one configure the root application folder in the `/app` folder.
