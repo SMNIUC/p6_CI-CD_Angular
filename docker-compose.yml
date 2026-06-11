@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    image: olympic-games-app:latest
+    container_name: olympic-games-app
+    ports:
+      - "80:80"
+    restart: unless-stopped

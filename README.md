@@ -52,6 +52,28 @@ npm pack
 
 This will create a distributable package containing the compiled code and necessary assets.
 
+### Run with Docker
+
+The application is containerized with a multi-stage [Dockerfile](Dockerfile) that builds the Angular bundle and serves it with nginx (using the config in the `nginx` folder, which sets the root application folder to `/app`).
+
+The simplest way to run it locally is with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+Once the container is up, open `http://localhost` in your browser.
+
+Useful commands:
+
+```bash
+docker compose up -d --build   # rebuild the image after code changes, then start
+docker compose logs -f         # follow the container logs
+docker compose down            # stop and remove the container
+```
+
+> **Note:** the app is published on port `80`. If that port is already in use (or requires elevated privileges on your machine), change the mapping in [docker-compose.yml](docker-compose.yml) to e.g. `"8080:80"` and browse to `http://localhost:8080`.
+
 ### Deploy on nginx
 
 To deploy application on nginx web server with docker you can use nginx config located in the `nginx` folder. This one configure the root application folder in the `/app` folder.
