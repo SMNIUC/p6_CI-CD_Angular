@@ -361,8 +361,8 @@ jobs:
           {
             "branches": ["main"],
             "plugins": [
-              "@semantic-release/commit-analyzer",
-              "@semantic-release/release-notes-generator",
+              ["@semantic-release/commit-analyzer", { "preset": "conventionalcommits" }],
+              ["@semantic-release/release-notes-generator", { "preset": "conventionalcommits" }],
               "@semantic-release/github"
             ]
           }
@@ -371,6 +371,12 @@ jobs:
       - name: Run semantic-release
         id: semantic
         uses: cycjimmy/semantic-release-action@v6
+        with:
+          # The 'conventionalcommits' preset (Conventional Commits spec) is what
+          # understands the `feat!:` / `fix!:` breaking-change shorthand; the default
+          # 'angular' preset does not. This package provides that preset.
+          extra_plugins: |
+            conventional-changelog-conventionalcommits@9
         env:
           # Auto-provided token; GitHub masks it in logs. Used to create the tag/release.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
