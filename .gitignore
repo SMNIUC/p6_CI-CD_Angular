@@ -37,6 +37,13 @@ yarn-error.log
 testem.log
 /typings
 
+# Test reports
+/test-results
+/reports
+
+# Packaged artifacts
+*.tgz
+
 # System files
 .DS_Store
 Thumbs.db
