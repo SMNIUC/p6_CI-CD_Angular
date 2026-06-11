@@ -2,7 +2,7 @@
 
 # ---- Build stage ----
 # Compile the Angular app into static files
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 # Install dependencies first to leverage Docker layer caching

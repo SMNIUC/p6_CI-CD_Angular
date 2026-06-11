@@ -28,7 +28,7 @@ permissions:
 # ---------------------------------------------------------------------------
 env:
   PROJECT_TYPE: auto
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: temurin
 
@@ -151,15 +151,22 @@ jobs:
       REGISTRY: ghcr.io
       # Image repository — defaults to this repo (owner/name). Override to retarget.
       IMAGE_NAME: ${{ github.repository }}
-      # Host port used to probe the container during validation.
-      TEST_PORT: '8080'
+      # --- Validation config (adapt per project type) ---
+      # Mode: 'http'   -> probe an HTTP endpoint for EXPECTED_STATUS
+      #       'running'-> just check the container stays up (good for non-HTTP apps/services)
+      #       'none'   -> skip validation entirely
+      VALIDATE: http
+      CONTAINER_PORT: '80'      # port the app listens on INSIDE the container (e.g. 8080 for Spring Boot)
+      HEALTH_PATH: '/'          # HTTP path to probe (e.g. /actuator/health)
+      EXPECTED_STATUS: '200'    # expected HTTP status code
+      TEST_PORT: '8080'         # host port mapped to CONTAINER_PORT during validation
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Compute image reference and tag
         id: meta
@@ -176,7 +183,7 @@ jobs:
       # Build the image into the local daemon first (no push yet) so it can be
       # validated before it ever reaches the registry.
       - name: Build image (load locally)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -185,22 +192,44 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Validate image is functional
+        if: env.VALIDATE != 'none'
         run: |
           set -euo pipefail
-          docker run -d --name ci-validate -p "${TEST_PORT}:80" "${{ steps.meta.outputs.ref }}"
-          ok=0
-          for i in $(seq 1 15); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${TEST_PORT}" || true)"
-            if [ "$code" = "200" ]; then
-              echo "App responded with HTTP 200."
-              ok=1
-              break
-            fi
-            echo "Attempt $i: got '$code', retrying in 2s..."
-            sleep 2
-          done
-          docker logs ci-validate || true
-          docker rm -f ci-validate >/dev/null 2>&1 || true
+
+          cleanup() { docker logs ci-validate 2>&1 || true; docker rm -f ci-validate >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          docker run -d --name ci-validate -p "${TEST_PORT}:${CONTAINER_PORT}" "${{ steps.meta.outputs.ref }}"
+
+          case "$VALIDATE" in
+            http)
+              ok=0
+              for i in $(seq 1 15); do
+                code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${TEST_PORT}${HEALTH_PATH}" || true)"
+                if [ "$code" = "$EXPECTED_STATUS" ]; then
+                  echo "App responded with HTTP $code (expected $EXPECTED_STATUS)."
+                  ok=1
+                  break
+                fi
+                echo "Attempt $i: got '$code', want '$EXPECTED_STATUS', retrying in 2s..."
+                sleep 2
+              done
+              ;;
+            running)
+              # Non-HTTP app/service: succeed if the container is still up after a grace period.
+              ok=0
+              sleep 5
+              if [ "$(docker inspect -f '{{.State.Running}}' ci-validate 2>/dev/null)" = "true" ]; then
+                echo "Container is up and running."
+                ok=1
+              fi
+              ;;
+            *)
+              echo "::error::Unknown VALIDATE mode '$VALIDATE' (expected http|running|none)."
+              exit 1
+              ;;
+          esac
+
           if [ "$ok" != "1" ]; then
             echo "::error::Image failed validation — not pushing."
             exit 1
@@ -210,7 +239,7 @@ jobs:
       # daemon, so we just push it (login uses the auto-provided GITHUB_TOKEN,
       # which GitHub masks in logs).
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
